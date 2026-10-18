@@ -1,0 +1,233 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-menu-results",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -304,
+        -32
+      ],
+      "id": "89a5e26b-9300-4755-81f3-4201899986e3",
+      "name": "Webhook",
+      "webhookId": "d2c4aec1-fde7-4fa1-a8c2-89268eaf32a6"
+    },
+    {
+      "parameters": {
+        "url": "=https://r.jina.ai/{{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Return-Format",
+              "value": "markdown"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        144,
+        -32
+      ],
+      "id": "47e01dfa-cdbb-4dea-a5b6-ff4a0e468dd8",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Restaurant URL: {{ $('Parse Message').item.json.url }}\nDietary requirements: {{ $('Parse Message').item.json.diets }}\n\nPage content below (may include non-menu text such as navigation or opening hours; ignore that):\n\n{{ ($json.data || '').slice(0, 40000) }}",
+        "options": {
+          "systemMessage": "Active requirements: {{ $('Parse Message').item.json.diets }}\n\nOnly apply the requirements listed as active.\n\nStart your reply with exactly these two lines, then a blank line, then the menu analysis:\nRESTAURANT: <the restaurant's name>\nLOCATION: <street address, suburb, city, or \"unknown\">\nOnly use an address that appears in the page content. Never guess or invent one. If the page lists several branches, write \"Multiple locations\".\n\nWrite the menu analysis in markdown, grouped under these headings, with one bullet per dish written as \"**Dish name** – short note\":\n### 🟢 Suitable\n### 🟡 Ask first\n### 🔴 Avoid\nKeep it concise: for long menus, list every 🟢 and 🟡 item but summarise 🔴 items briefly."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        368,
+        -32
+      ],
+      "id": "264c573f-15e2-48f9-ae3f-6f7e1e71f811",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        368,
+        208
+      ],
+      "id": "e85d63fb-3979-4f0c-8ae4-d92513c85d4a",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ihWWm4iVHKXoQFgp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/// PARSE MESSAGE\n// Reads the Forkcast form: body.preferences (comma-separated) and body.menuUrl.\nconst item = $input.first().json;\n\nconst url = (item.body?.menuUrl ?? '').trim().replace(/[).,!?]+$/, '');\nif (!/^https?:\\/\\//i.test(url)) {\n  throw new Error('No menu link received. Send a restaurant or menu URL.');\n}\n\nconst FORM_PREFS = {\n  'gluten intolerance': 'gluten-sensitive (not coeliac)',\n  'lactose intolerance': 'dairy intolerant',\n  vegetarian: 'vegetarian',\n  vegan: 'vegan',\n};\n\nconst diets = [...new Set(\n  (item.body?.preferences ?? '')\n    .split(',')\n    .map(p => FORM_PREFS[p.trim().toLowerCase()])\n    .filter(Boolean)\n)].join(', ') || FORM_PREFS['gluten intolerance'];\n\nreturn [{ json: { url, diets } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -32
+      ],
+      "id": "034f660f-d19d-41af-a4f7-9115e645e272",
+      "name": "Parse Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "// FORMAT REPLY\n// Splits the RESTAURANT / LOCATION lines off the top of the agent's reply\n// and returns them as separate fields for the Forkcast frontend.\nconst raw = $input.first().json.output ?? '';\n\nconst meta = {};\nconst message = raw\n  .replace(/^[ \\t*_]*(RESTAURANT|LOCATION)[ \\t*_]*:(.*)$/gim, (_, key, value) => {\n    meta[key.toLowerCase()] = value;\n    return '';\n  })\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .trim();\n\n// Treat \"unknown\" / \"N/A\" / \"not listed\" as no value\nconst clean = (value) => {\n  const text = (value ?? '').replace(/[*_]+/g, '').trim();\n  return text && !/^(unknown|n\\/?a|none|not (found|listed|provided|available))\\.?$/i.test(text) ? text : null;\n};\n\nreturn [{\n  json: {\n    message,\n    restaurantName: clean(meta.restaurant),\n    location: clean(meta.location),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        -32
+      ],
+      "id": "bc142ef8-e418-44ea-817f-20796b189790",
+      "name": "Format Reply"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        960,
+        -32
+      ],
+      "id": "81cfdee6-037e-4abb-8e50-968a009d6388",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Message": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reply": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "localhost:5678",
+          "connection": "keep-alive",
+          "content-length": "283",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0",
+          "sec-ch-ua": "\"Microsoft Edge\";v=\"155\", \"Chromium\";v=\"155\", \"Not(A:Brand\";v=\"24\"",
+          "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryGGodmA3zrigpeHu1",
+          "sec-ch-ua-mobile": "?0",
+          "accept": "*/*",
+          "origin": "http://localhost:8000",
+          "sec-fetch-site": "same-site",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-dest": "empty",
+          "referer": "http://localhost:8000/",
+          "accept-encoding": "gzip, deflate, br, zstd",
+          "accept-language": "en-GB,en;q=0.9,en-US;q=0.8"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "preferences": "gluten intolerance",
+          "menuUrl": "https://ramenhead.co.za/menu/"
+        },
+        "webhookUrl": "http://localhost:5678/webhook/get-menu-results",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f4d1ea35374459ca5dde40bdd2b511b90cc2a71904f9986a517d256f90a82518"
+  }
+}

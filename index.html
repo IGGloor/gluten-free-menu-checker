@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forkcast · Menu Matcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:ital,wght@0,400;0,600;1,400&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+    <main class="main">
+      <div class="column">
+        <div class="intro">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+          </span>
+          <h1>Forkcast</h1>
+          <p class="lead">Your food forecast before you eat out.</p>
+        </div>
+
+        <hr class="rule">
+
+        <form id="menu-form" class="form" novalidate>
+          <section class="section">
+            <h2 class="section-title"><span class="num">1.</span> Your dietary preferences</h2>
+            <div class="options" role="group" aria-label="Dietary preferences">
+              <button type="button" class="option" aria-pressed="false" data-value="gluten intolerance" data-short="gluten-free">
+                <span class="checkbox" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <span>Gluten intolerance</span>
+              </button>
+              <button type="button" class="option" aria-pressed="false" data-value="lactose intolerance" data-short="lactose-free">
+                <span class="checkbox" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <span>Lactose intolerance</span>
+              </button>
+              <button type="button" class="option" aria-pressed="false" data-value="vegetarian" data-short="vegetarian">
+                <span class="checkbox" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <span>Vegetarian</span>
+              </button>
+              <button type="button" class="option" aria-pressed="false" data-value="vegan" data-short="vegan">
+                <span class="checkbox" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <span>Vegan</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2 class="section-title"><span class="num">2.</span> The restaurant menu</h2>
+            <div class="field">
+              <label for="menu-url">Restaurant website or menu link</label>
+              <input type="url" id="menu-url" class="input" name="menuUrl" placeholder="https://ramenhead.co.za/menu/" autocomplete="url">
+            </div>
+
+            <!-- PDF upload: hidden until the n8n workflow can read PDFs (future enhancement, see README).
+                 Remove the hidden attribute to bring it back; script.js already sends the file as "menu". -->
+            <div class="pdf-upload" hidden>
+              <div class="divider"><span>or</span></div>
+
+              <div class="field">
+                <label for="menu-file">Upload a menu PDF</label>
+                <label class="file-picker">
+                  <input type="file" id="menu-file" name="menuFile" accept="application/pdf,.pdf">
+                  <span class="btn btn-secondary" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+                    Choose file
+                  </span>
+                  <span id="file-name" class="file-name">No file chosen</span>
+                </label>
+              </div>
+            </div>
+
+            <p id="form-error" class="form-error" role="alert" hidden></p>
+          </section>
+
+          <div class="cta">
+            <button type="submit" id="submit-btn" class="btn btn-primary btn-cta" disabled>Find suitable dishes</button>
+            <p id="cta-helper" class="cta-helper">Choose at least one preference and add a menu link.</p>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <footer class="site-footer">Forkcast suggestions are a guide. Always confirm allergens with the restaurant.</footer>
+  </div>
+
+  <!-- Loading modal (not dismissible) -->
+  <div id="loader" class="backdrop backdrop-blur" hidden>
+    <div class="dialog dialog-loading" role="dialog" aria-modal="true" aria-labelledby="loader-title" aria-describedby="loader-message">
+      <div class="forecast-art" aria-hidden="true">
+        <div class="sun"></div>
+        <div class="sun-core"></div>
+        <svg class="cloud" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+        <div class="wind wind-1"></div>
+        <div class="wind wind-2"></div>
+      </div>
+      <div class="kicker">Today's forecast</div>
+      <div id="loader-title" class="dialog-title dialog-title-loading">Reading the menu skies…</div>
+      <div id="loader-message" class="loader-message" aria-live="polite"></div>
+      <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+      <div id="progress-label" class="progress-label"></div>
+    </div>
+  </div>
+
+  <!-- Results modal -->
+  <div id="result" class="backdrop" hidden>
+    <div class="dialog dialog-result" role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-header">
+        <div class="result-heading">
+          <div class="kicker">Your Forkcast · <span id="result-restaurant"></span></div>
+          <div id="result-title" class="dialog-title dialog-title-result"></div>
+          <div id="result-location" class="result-sub result-location" hidden>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+            <span id="result-location-text"></span>
+          </div>
+          <div id="result-prefs" class="result-sub"></div>
+        </div>
+        <button type="button" id="close-btn" class="btn btn-ghost btn-icon" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div id="legend" class="legend">
+        <span><span class="dot dot-clear"></span>Clear: suits you</span>
+        <span><span class="dot dot-ask"></span>Ask: easy swap</span>
+        <span><span class="dot dot-avoid"></span>Avoid</span>
+      </div>
+
+      <div id="dish-list" class="dish-list"></div>
+
+      <div id="result-content" class="reply"></div>
+
+      <div class="dialog-actions">
+        <button type="button" id="retry-btn" class="btn btn-secondary">Try another menu</button>
+        <button type="button" id="download-btn" class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+          <span>Download PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

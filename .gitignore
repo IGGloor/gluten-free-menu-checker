@@ -1,0 +1,12 @@
+# Local-only notes
+TEST_GUIDE.md
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# n8n local data, if it's ever started from this folder
+.n8n/
