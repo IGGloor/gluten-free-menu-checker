@@ -188,6 +188,7 @@ h3 {
 }
 
 .option {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -207,7 +208,7 @@ h3 {
   border-color: var(--color-accent-400);
 }
 
-.option[aria-pressed="true"] {
+.option:has(input:checked) {
   border-color: var(--color-accent);
   background: var(--color-accent-100);
 }
@@ -224,7 +225,19 @@ h3 {
   background: transparent;
 }
 
-.option[aria-pressed="true"] .checkbox {
+.option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.option:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.option input:checked + .checkbox {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-surface);
@@ -258,64 +271,6 @@ h3 {
 .input:focus {
   border-color: var(--color-accent);
   outline: none;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--color-neutral-600);
-  font-style: italic;
-}
-
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--color-divider);
-}
-
-.file-picker {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 46px;
-  padding: 6px 8px 6px 6px;
-  border: 1px dashed var(--color-neutral-400);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  color: var(--color-neutral-700);
-  cursor: pointer;
-}
-
-.file-picker:hover {
-  border-color: var(--color-accent);
-}
-
-.file-picker:has(input:focus-visible) {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.file-picker input {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-}
-
-.file-picker .btn {
-  pointer-events: none;
-  flex: none;
-}
-
-.file-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .form-error {
@@ -571,7 +526,46 @@ h3 {
   to { opacity: 1; }
 }
 
-/* Results */
+/* Results page */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.back-link {
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  color: var(--color-neutral-700);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.disclaimer {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-neutral-700);
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+.optional {
+  color: var(--color-neutral-500);
+}
+
+.print-only {
+  display: none;
+}
+
 .dialog-result {
   width: min(620px, 100%);
   max-height: calc(100vh - 48px);
@@ -781,134 +775,51 @@ h3 {
   }
 }
 
-/* — Layout used only when building the downloadable PDF —
-   Sizes are in em so the whole layout scales with the font size set in fitToOnePage() */
-.pdf-doc {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0.6em 0.3em;
-  color: var(--color-text);
-  background: #fff;
-  font-family: var(--font-body);
-  font-size: 14px;
-  line-height: 1.5;
-}
+/* — Print / "Save as PDF" from the results page — */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
 
-.pdf-doc p {
-  margin: 0 0 0.8em;
-}
+  body {
+    font-size: 12px;
+  }
 
-.pdf-doc .pdf-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  margin: 0;
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 1.2em;
-}
+  .site-footer,
+  .no-print {
+    display: none !important;
+  }
 
-.pdf-doc .pdf-kicker {
-  margin: 1em 0 0;
-  font-size: 0.75em;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
+  .print-only {
+    display: block;
+  }
 
-.pdf-doc h1 {
-  margin: 0.15em 0 0.2em;
-  font-weight: 400;
-  font-size: 2.2em;
-}
+  .print-brand {
+    margin: 0 0 var(--space-3);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 16px;
+  }
 
-.pdf-doc .pdf-meta {
-  margin: 0;
-  color: var(--color-neutral-700);
-  font-size: 0.9em;
-}
+  .main,
+  .column {
+    padding: 0;
+    max-width: none;
+  }
 
-.pdf-doc .pdf-header {
-  margin-bottom: 1em;
-  padding-bottom: 1em;
-  border-bottom: 1px solid var(--color-accent);
-}
+  .result-heading {
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-accent);
+  }
 
-.pdf-doc .pdf-summary {
-  margin: 0 0 0.6em;
-  font-family: var(--font-heading);
-  font-size: 1.4em;
-}
+  .dish {
+    break-inside: avoid;
+    padding: var(--space-2) 0;
+  }
 
-.pdf-doc table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.pdf-doc td {
-  padding: 0.55em 0;
-  border-bottom: 1px solid var(--color-divider);
-  vertical-align: top;
-}
-
-.pdf-doc td:last-child {
-  width: 1%;
-  padding-left: 1em;
-  text-align: right;
-}
-
-.pdf-doc .pdf-dish {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 1.25em;
-  line-height: 1.2;
-}
-
-.pdf-doc .pdf-note {
-  margin-top: 0.15em;
-  color: var(--color-neutral-700);
-  font-size: 0.9em;
-}
-
-.pdf-doc .tag {
-  font-size: 0.8em;
-}
-
-.pdf-doc h3 {
-  margin: 1.1em 0 0.4em;
-  font-size: 1.3em;
-}
-
-.pdf-doc ul {
-  margin: 0 0 0.8em;
-  padding-left: 1.6em;
-}
-
-.pdf-doc li {
-  margin-bottom: 0.3em;
-}
-
-.pdf-doc hr {
-  width: 100%;
-  margin: 1.2em 0;
-  border: none;
-  border-top: 1px solid var(--color-divider);
-}
-
-/* The main content takes the free space (clipped only if a reply is extremely long),
-   so the disclaimer always stays visible at the bottom of the page */
-.pdf-doc .pdf-main {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.pdf-doc .pdf-disclaimer {
-  flex-shrink: 0;
-  margin: 1em 0 0;
-  padding: 0.9em 1em;
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
-  color: var(--color-neutral-700);
-  font-size: 0.82em;
+  .tag {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

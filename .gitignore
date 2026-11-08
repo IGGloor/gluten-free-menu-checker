@@ -10,3 +10,12 @@ desktop.ini
 
 # n8n local data, if it's ever started from this folder
 .n8n/
+
+# Secrets: copy .env.example to .env for local development
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

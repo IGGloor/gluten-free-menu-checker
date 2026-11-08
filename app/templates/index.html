@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="intro">
+  <span class="brand-mark" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+  </span>
+  <h1>Forkcast</h1>
+  <p class="lead">Your food forecast before you eat out.</p>
+</div>
+
+<hr class="rule">
+
+<form id="menu-form" class="form" method="post" action="{{ url_for('analyze') }}">
+  <section class="section">
+    <h2 class="section-title"><span class="num">1.</span> Your dietary requirements</h2>
+    <div class="options" role="group" aria-label="Dietary requirements">
+      {% for value, (label, _, _) in preferences.items() %}
+      <label class="option">
+        <input type="checkbox" name="preferences" value="{{ value }}" {% if value in selected %}checked{% endif %}>
+        <span class="checkbox" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span>{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="field">
+      <label for="other">Other allergies or requirements <span class="optional">(optional)</span></label>
+      <input type="text" id="other" class="input" name="other" value="{{ other }}" maxlength="{{ max_other_chars }}" placeholder="e.g. peanut allergy, no shellfish">
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title"><span class="num">2.</span> The restaurant menu</h2>
+    <div class="field">
+      <label for="menu-url">Restaurant website or menu link</label>
+      <input type="url" id="menu-url" class="input" name="menu_url" value="{{ menu_url }}" placeholder="https://ramenhead.co.za/menu/" autocomplete="url" required>
+    </div>
+    {% if error %}
+    <p id="form-error" class="form-error" role="alert">{{ error }}</p>
+    {% endif %}
+  </section>
+
+  <div class="cta">
+    <button type="submit" class="btn btn-primary btn-cta">Find suitable dishes</button>
+    <p class="cta-helper">Choose at least one requirement and add a menu link.</p>
+  </div>
+</form>
+
+<!-- Loading overlay, shown by loading.js while the server reads the menu -->
+<div id="loader" class="backdrop backdrop-blur" hidden>
+  <div class="dialog dialog-loading" role="dialog" aria-modal="true" aria-labelledby="loader-title" aria-describedby="loader-message">
+    <div class="forecast-art" aria-hidden="true">
+      <div class="sun"></div>
+      <div class="sun-core"></div>
+      <svg class="cloud" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+      <div class="wind wind-1"></div>
+      <div class="wind wind-2"></div>
+    </div>
+    <div class="kicker">Today's forecast</div>
+    <div id="loader-title" class="dialog-title dialog-title-loading">Reading the menu skies…</div>
+    <div id="loader-message" class="loader-message" aria-live="polite"></div>
+    <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+    <div id="progress-label" class="progress-label"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='loading.js') }}"></script>
+{% endblock %}

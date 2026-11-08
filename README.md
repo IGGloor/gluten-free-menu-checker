@@ -2,149 +2,118 @@
 
 *Your food forecast before you eat out.*
 
-Forkcast is a single-page web app. You pick your dietary preferences, paste a link to a restaurant's menu and get back a list of dishes rated **Clear**, **Ask first** or **Avoid**, along with the restaurant's location when the website lists it. You can download the results as a one-page PDF.
+Forkcast tells you what you can eat at a restaurant. Choose your dietary requirements (and type in any other allergies), paste a link to the restaurant's menu, and you get a list of dishes rated **Clear**, **Ask first** or **Avoid**. The restaurant's location is shown too when its website lists one. You can print the results or save them as a PDF.
 
-The front end is plain HTML, CSS and JavaScript, with no build step. An **n8n** workflow does the menu analysis with AI.
+It's a Python [FastAPI](https://fastapi.tiangolo.com/) app with server-rendered [Jinja2](https://jinja.palletsprojects.com/) pages. It replaces the earlier n8n workflow, which you can still find in the git history.
+
+## How it works
+
+1. You submit the form on `/`, and it posts to `/analyze`.
+2. The server fetches the menu page as text through [Jina Reader](https://jina.ai/reader/) (`https://r.jina.ai/<menu link>`).
+3. It sends the text and your requirements to the **Google Gemini API**. Gemini returns structured JSON: the restaurant's name, its location, and each dish with a verdict (`clear` / `ask` / `avoid`) and a short note.
+4. The server renders the results page, with dishes sorted Clear → Ask first → Avoid.
+
+If something fails (a bad link, a page that can't be read, a Gemini error), the form shows again with a friendly message and your inputs still filled in. When Gemini is overloaded (`503`) or rate-limited (`429`), the app retries with backoff and then tries a fallback model before giving up.
+
+The real error is always printed in the terminal running `uvicorn`, so check there first if the page shows an error.
+
+> Put your key in **`.env`**, not `.env.example`. The app only reads `.env`, and `.env.example` is committed to git.
 
 ## Project files
 
-| File | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `index.html` | Page markup: logo intro, form, loading modal, results modal |
-| `style.css` | Monochrome "Classical" design tokens, component styles and the PDF layout |
-| `script.js` | Form state, the n8n request, turning the reply into dishes, modals, PDF export |
-| `n8n_flow.json` | The n8n workflow (webhook → read menu page → AI agent → formatted reply), ready to import |
+| `app/main.py` | FastAPI routes: form, `/analyze`, `/healthz` |
+| `app/menu_reader.py` | Fetches the menu page through Jina Reader |
+| `app/analyzer.py` | Gemini prompt, response schema and clean-up |
+| `app/templates/` | Jinja2 templates: `base.html`, `index.html` (form), `results.html` |
+| `app/static/style.css` | Monochrome "Classical" design, including print styles |
+| `app/static/loading.js` | Optional loading overlay while the menu is read. The form works without it. |
+| `tests/test_app.py` | Route tests with Jina and Gemini faked (no network or key needed) |
+| `render.yaml` | Render Blueprint for a free web service |
+| `.env.example` | Template for your local `.env` |
 
-## Setting up the n8n flow
+## Run it locally
 
-The workflow in `n8n_flow.json` works like this:
-
-1. **Webhook:** receives the form.
-2. **Parse Message:** reads the preferences and the menu link.
-3. **HTTP Request:** fetches the menu page as text through [Jina Reader](https://jina.ai/reader/).
-4. **AI Agent** (Google Gemini): rates each dish and finds the restaurant's name and address.
-5. **Format Reply:** splits off the name and location.
-6. **Respond to Webhook:** sends `{ message, restaurantName, location }` back to the page.
-
-### 1. Install and start n8n
-
-You need [Node.js](https://nodejs.org/) 20 or newer.
+You need Python 3.10 or newer.
 
 ```bash
-npm install -g n8n
-n8n start
+# 1. Create a virtual environment and install the dependencies
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+
+# 2. Add your Gemini API key
+copy .env.example .env          # Windows (macOS / Linux: cp .env.example .env)
+#    then open .env and paste your key after GEMINI_API_KEY=
+
+# 3. Start the app
+uvicorn app.main:app --reload
 ```
 
-Or run it without installing: `npx n8n`.
+Then open <http://localhost:8000>.
 
-Wait until the terminal shows `Editor is now accessible via: http://localhost:5678`, then open that address and create your local owner account.
+Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-> On Windows, clicking inside the terminal window can pause n8n while it starts. If it seems stuck, click into the terminal and press **Enter**.
+### Environment variables
 
-### 2. Import the workflow
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Yes | Your Google Gemini API key |
+| `GEMINI_MODEL` | No | The Gemini model to use. Default: `gemini-3.8-flash` |
+| `GEMINI_FALLBACK_MODEL` | No | Used when the main model is still overloaded after 3 tries. Default: `gemini-3.6-flash` |
+| `JINA_API_KEY` | No | A Jina Reader key. Jina works without one for light use; a key raises the rate limit. |
 
-1. In n8n, go to **Workflows → Create workflow**.
-2. Open the **⋯** menu (top right), choose **Import from File…** and pick `n8n_flow.json`.
-3. Save the workflow.
+> **Never commit your API key.** `.env` is in `.gitignore`. Only `.env.example` (which has no values) belongs in git. On Render, set the key in the dashboard.
 
-### 3. Add your Gemini API key
-
-1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. In the workflow, open the **Google Gemini Chat Model** node.
-3. Under **Credential**, choose **Create new credential** and paste the key.
-4. Save. The exported file only holds the credential's name, never the key, so everyone who imports it needs to add their own.
-
-The Jina Reader step needs no key for light use. If you hit rate limits, add an `Authorization: Bearer <your Jina key>` header to the **HTTP Request** node.
-
-### 4. Turn on the webhook
-
-- **For everyday use:** activate the workflow (the **Active** toggle, or **Publish** in newer n8n versions). The page then uses `http://localhost:5678/webhook/get-menu-results`.
-- **For testing in the editor:** click **Execute workflow / Listen for test event** and change `N8N_WEBHOOK_URL` in `script.js` to `http://localhost:5678/webhook-test/get-menu-results`. Each click accepts one request.
-
-CORS is already allowed for any origin in the Webhook node (`allowedOrigins: *`). That's fine locally, but restrict it to your site's address if you ever host the workflow publicly.
-
-### 5. Open the front end
-
-Serve the folder and open it in a browser, for example:
+### Run the tests
 
 ```bash
-python -m http.server 8000     # then open http://localhost:8000
+pip install -r requirements-dev.txt
+pytest
 ```
 
-`npx serve .` or the VS Code Live Server extension also work. Opening `index.html` straight from disk works too.
+## Deploy to Render (free)
 
-The page needs an internet connection for Google Fonts (Cormorant Garamond and Lora) and for `html2pdf.js`, which comes from cdnjs.
+The repo includes a `render.yaml` Blueprint, so Render can set everything up from it.
 
-## The n8n connection
+1. Push this repository to GitHub (or GitLab / Bitbucket).
+2. In the [Render dashboard](https://dashboard.render.com/), choose **New → Blueprint** and pick the repository.
+3. Render reads `render.yaml` and asks for the secret values:
+   - `GEMINI_API_KEY`: paste your key.
+   - `JINA_API_KEY`: optional. Leave it empty if you don't have one.
+4. Click **Apply**. Render installs `requirements.txt` and starts the app with
+   `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+5. When the deploy finishes, open the `https://forkcast-….onrender.com` address it gives you.
 
-The request is the same as before the redesign. The front end sends a `POST` with `multipart/form-data` to the webhook:
+Prefer to set it up by hand? Choose **New → Web Service** instead, with:
 
-| Field | Value |
+| Setting | Value |
 | --- | --- |
-| `preferences` | Comma-separated, e.g. `gluten intolerance, vegan` |
-| `menuUrl` | The menu link (empty string if none) |
-| `menu` | The PDF file. Not sent at the moment, because the PDF upload is hidden (see [Future enhancements](#future-enhancements)). |
+| Runtime | Python 3 |
+| Build command | `pip install -r requirements.txt` |
+| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Instance type | Free |
+| Environment | `GEMINI_API_KEY` = your key, `PYTHON_VERSION` = `3.12.8` |
+| Health check path | `/healthz` |
 
-The n8n webhook must allow CORS from wherever the page is served.
+**About the free plan:** the service goes to sleep after about 15 minutes without visits. The next visit wakes it up, which can take up to a minute before the page loads.
 
-### What the reply can look like
-
-Any of these work:
-
-- Plain text or markdown
-- JSON such as `{ "output": "..." }`; `text`, `response` or `message` also work
-- An array whose first item is one of the above
-
-Optional JSON fields:
-
-- `restaurantName` (or `restaurant` / `name`): shown in the results and the PDF. Without it, the name comes from the URL hostname.
-- `location` (or `restaurantLocation` / `address`): shown with a pin under the results title and in the PDF header. If it's missing, the results popup leaves the line out and the PDF says "Location not provided". The AI agent reads the address from the restaurant's page and never guesses one.
-- `dishes`: `[{ "name": "...", "verdict": "clear" | "ask" | "avoid", "note": "..." }]`. If this is present, the front end uses it directly and skips the text parsing.
-
-### How dishes are read from a text reply
-
-The AI reply is grouped into sections. The section heading decides the verdict, and each bullet under it becomes a dish:
-
-```
-*🟢 Naturally Gluten-Free*
-- *Edamame* – steamed with sea salt
-
-*🟡 Ask for changes*
-- **Shiitake Ramen** - ask for rice noodles
-
-*🔴 Avoid*
-- Vegetable Gyoza – wheat wrappers
-```
-
-- Headings can be `*bold*`, `**bold**`, `## markdown`, an emoji line or a line ending in `:`.
-- Headings with 🟢 / ✅ / "safe" / "suitable" / "naturally" / "free" count as **Clear**.
-- Headings with 🟡 / 🟠 / ⚠ / "ask" / "modify" / "swap" / "request" / "check" count as **Ask first**.
-- Headings with 🔴 / ❌ / "avoid" / "not" / "contains" count as **Avoid**.
-- A bullet can also have its own emoji, which overrides its section.
-- Each bullet is split into a name and a note at the first ` – `, ` - `, `: ` or `( … )`.
-
-If no dishes can be found, the results modal shows the whole reply as formatted text instead.
+Each push to the connected branch redeploys automatically.
 
 ## Design notes
 
 - Monochrome palette (`#111111` on `#FFFFFF`, greys for dividers and tags). Cormorant Garamond for headings, Lora for body text.
 - The **Avoid** tag has an × glyph and the dish name is greyed out, so it is easy to tell apart from **Clear** in black and white.
-- The loading modal moves through 5 steps. If n8n is still working after step 5, it keeps rotating extra messages so it never looks stuck. When the reply arrives, the bar fills to 100%.
-- Errors (n8n unreachable, a non-200 response, an invalid URL) appear inline under the menu section.
-- Closing the results ("×", **Try another menu**, Esc or a click on the backdrop) keeps your inputs, so you can change them and try again.
+- The loading overlay moves through 5 steps, then keeps rotating extra messages until the results page arrives, so it never looks stuck.
+- **Print or save as PDF** uses the browser's print dialog. Print styles hide the buttons and add the menu link and date.
+- **Try another menu** goes back to the form with your previous answers filled in.
 
-## Future enhancements
+## Future ideas
 
-- **Menu PDF upload.** The upload field is already built but hidden in `index.html`: the `<div class="pdf-upload" hidden>` block. The frontend sends the file as `menu`. To turn it on:
-  1. In n8n, add an **IF** node after Parse Message that checks for an uploaded file.
-  2. On the "file uploaded" branch, add an **Extract From File** node (PDF → text) that feeds the AI Agent. The link branch keeps using the Jina HTTP Request.
-  3. Let Parse Message accept a request with a PDF but no link.
-  4. Remove the `hidden` attribute from the `pdf-upload` block.
-- **Better error messages.** At the moment errors show as one line of text under the menu field, and sometimes it's the raw technical message, e.g. `n8n responded with 500: {...}`. Improvements:
-  - Friendly messages for each case: n8n not running, the restaurant page couldn't be read, the AI took too long, or no menu was found on the page.
-  - A proper error state, either a styled alert or an error version of the results popup, with a **Try again** button.
-  - Have n8n return errors as JSON (e.g. `{ "error": "page_unreadable" }`) by using the nodes' error outputs and a Respond to Webhook node, instead of failing with a generic 500.
-- **A backup location lookup.** When the restaurant's page doesn't list an address, look it up with the Google Places API (Text Search) using the restaurant name and website.
+- **Menu PDF upload:** accept a PDF, extract its text on the server and send that to Gemini instead of the Jina text.
+- **A backup location lookup:** when the restaurant's page doesn't list an address, look it up with the Google Places API.
 
 ## Disclaimer
 
