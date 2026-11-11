@@ -13,6 +13,10 @@ class MenuFetchError(Exception):
     """The menu page couldn't be read."""
 
 
+class JinaRateLimitError(MenuFetchError):
+    """Jina Reader refused the request because too many came from this server's IP address."""
+
+
 async def fetch_menu_text(url: str) -> str:
     headers = {"X-Return-Format": "markdown"}
     # Optional: Jina works without a key for light use, a key raises the rate limit.
@@ -27,7 +31,11 @@ async def fetch_menu_text(url: str) -> str:
         raise MenuFetchError(f"Could not reach Jina Reader: {error}") from error
 
     if response.status_code != 200:
-        raise MenuFetchError(f"Jina Reader responded with {response.status_code}")
+        detail = f"Jina Reader responded with {response.status_code}: {response.text[:300]!r}"
+        if response.status_code == 429:
+            # Without a key the limit is per IP, and hosts like Render share IPs between many apps.
+            raise JinaRateLimitError(detail + (" (JINA_API_KEY is set)" if jina_key else " (no JINA_API_KEY set)"))
+        raise MenuFetchError(detail)
 
     text = response.text.strip()
     if not text:

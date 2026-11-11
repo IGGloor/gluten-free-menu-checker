@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.analyzer import AnalysisError, Dish, GeminiBusyError, MenuAnalysis, Verdict
-from app.menu_reader import MenuFetchError
+from app.menu_reader import JinaRateLimitError, MenuFetchError
 
 client = TestClient(main.app)
 
@@ -89,6 +89,16 @@ def test_menu_fetch_error(monkeypatch):
     assert response.status_code == 502
     assert "couldn&#39;t read that page" in response.text
     assert f'value="{MENU_URL}"' in response.text  # inputs are kept
+
+
+def test_menu_fetch_rate_limited(monkeypatch):
+    async def limited_fetch(url):
+        raise JinaRateLimitError("429")
+
+    monkeypatch.setattr(main, "fetch_menu_text", limited_fetch)
+    response = client.post("/analyze", data={"menu_url": MENU_URL, "preferences": ["vegan"]})
+    assert response.status_code == 503
+    assert "Too many menus" in response.text
 
 
 def test_analysis_error(fake_services, monkeypatch):

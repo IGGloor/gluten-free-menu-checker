@@ -13,12 +13,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .analyzer import AnalysisError, GeminiBusyError, Verdict, analyze_menu
-from .menu_reader import MenuFetchError, fetch_menu_text
+from .menu_reader import JinaRateLimitError, MenuFetchError, fetch_menu_text
 
 # Reads GEMINI_API_KEY etc. from a local .env file. On Render the variables are set in the dashboard.
 load_dotenv()
 
 BASE_DIR = Path(__file__).parent
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s: %(message)s")
 logger = logging.getLogger("forkcast")
 
 app = FastAPI(title="Forkcast", docs_url=None, redoc_url=None)
@@ -102,6 +103,12 @@ async def analyze(
 
     try:
         menu_text = await fetch_menu_text(menu_url)
+    except JinaRateLimitError as error:
+        logger.warning("Menu fetch rate-limited for %s: %s", menu_url, error)
+        return render_form(
+            request, **form, status_code=503,
+            error="Too many menus are being read right now. Please wait a minute and try again.",
+        )
     except MenuFetchError as error:
         logger.warning("Menu fetch failed for %s: %s", menu_url, error)
         return render_form(
@@ -123,6 +130,11 @@ async def analyze(
             request, **form, status_code=502,
             error="The menu reader is having trouble right now. Please try again in a minute.",
         )
+
+    logger.info("Read %d characters from %s, found %d dishes", len(menu_text), menu_url, len(analysis.dishes))
+    if not analysis.dishes:
+        # Usually means Jina returned a block page, a cookie banner or an empty shell instead of the menu.
+        logger.warning("No dishes for %s. Page text starts: %r", menu_url, menu_text[:500])
 
     dishes = sorted(analysis.dishes, key=lambda d: VERDICT_ORDER[d.verdict])
     short_prefs = [PREFERENCES[p][2] for p in preferences] + ([other] if other else [])
