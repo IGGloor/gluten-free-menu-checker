@@ -1,0 +1,6 @@
+Database migrations for Forkcast (Alembic, async template).
+
+Apply them:            alembic upgrade head
+Add one after changing app/models.py:
+                       alembic revision --autogenerate -m "describe the change"
+Then read the new file in alembic/versions/ before committing it.

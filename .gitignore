@@ -13,9 +13,12 @@ desktop.ini
 
 # Secrets: copy .env.example to .env for local development
 .env
+.env.local
 
 # Python
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.neon
+node_modules/

@@ -33,7 +33,7 @@ async def fetch_menu_text(url: str) -> str:
     if response.status_code != 200:
         detail = f"Jina Reader responded with {response.status_code}: {response.text[:300]!r}"
         if response.status_code == 429:
-            # Without a key the limit is per IP, and hosts like Render share IPs between many apps.
+            # Without a key the limit is per IP, and cloud hosts share IPs between many apps.
             raise JinaRateLimitError(detail + (" (JINA_API_KEY is set)" if jina_key else " (no JINA_API_KEY set)"))
         raise MenuFetchError(detail)
 

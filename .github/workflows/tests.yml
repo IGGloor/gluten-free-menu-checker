@@ -1,0 +1,49 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the minimum in the README; 3.12 is Vercel's default, which production uses.
+        python-version: ["3.10", "3.12"]
+
+    # A throwaway PostgreSQL for tests/test_database.py (it fails rather than skips on CI).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: forkcast
+          POSTGRES_PASSWORD: forkcast
+          POSTGRES_DB: forkcast_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forkcast -d forkcast_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    env:
+      TEST_DATABASE_URL: postgresql://forkcast:forkcast@localhost:5432/forkcast_test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Jina Reader and Gemini are faked in the tests, so no API keys are needed.
+      - name: Run tests
+        run: pytest -v
